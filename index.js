@@ -1,185 +1,147 @@
-// const TAGS = new Set ([ "a", "button", "div", "footer", "h1", "header", "input", "label", "li", "p", "section", "span", "strong", "ul" ]);
-// const EVENTS = new Set ([ "blur", "change", "click", "contextmenu", "dblclick", "focus", 
-//     "keydown", "keyup", "keypress", "load", "mousedown", "mouseover", "mouseout", "mouseup", "mousewheel", "resize",
-//     "scroll", "submit", "unload", "touchstart", "touchend", "touchmove", "touchcancel" ]);
+// https://github.com/ai/nanoid
+let nanoid = (t=21) => crypto.getRandomValues(new Uint8Array(t)).reduce(((t,e)=>t+=(e&=63)<36?e.toString(36):e<62?(e-26).toString(36).toUpperCase():e>62?"-":"_"),"");
 
-const HTML_ATTRS = new Map();
-function addHtmlAttr ( name, length ) {
-    if ( length === 1 || length === 2 ) {
-        HTML_ATTRS.set( name, ({ name, length, setAttr: length === 1 ? ( elem, value ) => elem[name] = true : ( elem, value ) => elem.setAttribute( name, value.toString().trim()) }) );
-        return;
-    }
-    console.log( "Unsupported attribute ('" + name + "') length: " + length + " \nOnly length 1 or 2 are supported.");
-}
+const DOM_EVENTS = [
+    "abort",
+    "afterprint",
+    "animationend",
+    "animationiteration",
+    "animationstart",
+    "beforeprint",
+    "beforeunload",
+    "blur",
+    "canplay",
+    "canplaythrough",
+    "change",
+    "click",
+    "contextmenu",
+    "copy",
+    "cut",
+    "dblclick",
+    "drag",
+    "dragend",
+    "dragenter",
+    "dragleave",
+    "dragover",
+    "dragstart",
+    "drop",
+    "durationchange",
+    "ended",
+    "error",
+    "focus",
+    "focusin",
+    "focusout",
+    "fullscreenchange",
+    "fullscreenerror",
+    "hashchange",
+    "input",
+    "invalid",
+    "keydown",
+    "keypress",
+    "keyup",
+    "load",
+    "loadeddata",
+    "loadedmetadata",
+    "loadstart",
+    "message",
+    "mousedown",
+    "mouseenter",
+    "mouseleave",
+    "mousemove",
+    "mouseover",
+    "mouseout",
+    "mouseup",
+    "mousewheel",
+    "offline",
+    "online",
+    "open",
+    "pagehide",
+    "pageshow",
+    "paste",
+    "pause",
+    "play",
+    "playing",
+    "popstate",
+    "progress",
+    "ratechange",
+    "resize",
+    "reset",
+    "scroll",
+    "search",
+    "seeked",
+    "seeking",
+    "select",
+    "show",
+    "stalled",
+    "storage",
+    "submit",
+    "suspend",
+    "timeupdate",
+    "toggle",
+    "touchcancel",
+    "touchend",
+    "touchmove",
+    "touchstart",
+    "transitionend",
+    "unload",
+    "volumechange",
+    "waiting",
+    "wheel"]
 
-[ "autofocus", "checked" ].forEach( name => addHtmlAttr( name, 1 ) );
-[ "class", "for", "height", "href", "id", "placeholder", "style", "type", "value", "width" ].forEach( name => addHtmlAttr( name, 2 ) );
+export function dom(strings, ...exprs) {
+    const Handlers = new Map();
 
-const X_ATTRS = [
-        {
-            name: ".class",
-            length: 1,   
-            matcher: v => v.trim().startsWith( "." ), 
-            setAttr: ( elem, value ) => elem.classList.add( value.trim().replace(/\./g, ' ').replace(/\s\s+/g, ' ').trim().split(" ") ) 
-        },  
-        {   
-            name: "#id",
-            length: 1,
-            matcher: v => v.trim().startsWith( "#" ), 
-            setAttr: ( elem, value ) => elem.setAttribute( "id", value.trim().substring( 1 ) ) 
-        },
-        (() => ({
-            name: "-",
-            length: 2,
-            matchingValue: null,
-            matcher(v) {
-                const result = v.trim().startsWith( "-" );
-                if ( result ) this.matchingValue = v.trim();
-                return result;
-            },
-            setAttr( elem, value ) { 
-                elem.setAttribute( `data${this.matchingValue}`, value.toString().trim() ); 
-            }
-        }))(),
-];
-
-export function dom ( UI, emitter ) {
-    if ( Array.isArray( UI ) ) {
-        const fragment = new DocumentFragment();
-        processDomLiteral( fragment, UI, emitter );
-        return fragment;
-    }
-    console.log( "Invalid dom" );
-}
-
-export function T ( strings ) {
-    return document.createElement( strings[0] );
-}
-
-export function on ( eventName, fn, payload ) {
-    if ( fn == undefined) {
-        console.log( `Event handler function is missing for ${ eventName } ` );
-    }
-    return ( { regType: "eventHandler", eventName, fn, payload } );
-}
-
-const isString = value => ( typeof value === 'string' || value instanceof String );
-
-const isRegType = value => value && value.regType;
-
-function isFunction( value ) {
-    return typeof value === "function";
-}
-
-function processDomLiteral ( parent, literal, emitter ) {
-    if ( literal.length === 0 ) return;
-
-    let currentElem = null;
-    let attrProc = undefined;
-    let pos = 1;
-
-    literal.forEach( value  => {
-        if ( value instanceof Element ) {
-            currentElem = value;
-            parent.appendChild( currentElem );
-        } else if ( Array.isArray( value ) ) {
-            if ( value.length === 0 ) {
-                console.log( "Skip empty array" );
-                return;
-            } else {
-                if ( value[0] instanceof Element ) {// check if child elements
-                    processDomLiteral( currentElem, value, emitter );
-                } else if ( value.length === 1 ) {// treat as text element
-                    const v = value[ 0 ];
-                    if ( isString( v )) {// text with fix value
-                        currentElem.textContent = v;
-                    } else if ( isFunction( v ) ) {
-                        currentElem.textContent = v();
-                        const domElem = currentElem;
-                        if ( emitter == undefined ) {
-                            console.log( `Emitter is undefined but dynamic text update function ${ v.name } requires one` );
-                            return;
-                        }
-                        emitter.on( v, () => {
-                            domElem.textContent = v();
-                        });
-                    } else {
-                        currentElem.textContent = "" + v;
-                        console.log( "Value were converted to string: " + value );
-                    }
-                } else {
-                    console.log( "Invalid value: " + value );
-                }
-                return;
-            }
+    const processExpr = (exp) => {
+        if (Array.isArray(exp)) {
+            const id = nanoid(12);
+            Handlers.set(id, { fn: exp[0], prop: exp[1] } );
+            return id;
         } else {
-            if ( isRegType( value ) ) {
-                if ( value.regType === "eventHandler" ) {
-                    const { eventName, fn, payload } = value;
-                    currentElem.addEventListener( eventName, e => fn( e, payload ) )
-                    return;
-                } else {
-                    console.log( "Unknown reg type for value : " + JSON.stringify( value ) );
-                    return;
-                }
-            }
-
-            if ( isFunction( value ) ) {
-                currentElem[ value.name ] = value;
-                value( currentElem );
-                currentElem.setAttribute( `data-fn`, value.name );
-                return;
-            }
-
-            if ( attrProc == undefined ) {
-                attrProc = findAttrProc( value );
-                if ( attrProc == undefined ) {
-                    console.log( "Can't find any matching attribute processor for value: " + value );
-                    return;
-                }
-            } 
-            
-            if ( attrProc != undefined ) {
-                if ( attrProc.length === 1 ) {
-                    attrProc.setAttr( currentElem, value );
-                    attrProc = undefined;
-                    pos = 1;
-                    return;
-                } 
-                if ( attrProc.length === 2 && pos === 2 ) {
-                    attrProc.setAttr( currentElem, value );
-                    attrProc = undefined;
-                    pos = 1;
-                    return;
-                }
-                pos += 1;
-            }
+            return exp;
         }
+    };
+
+    const retVal = strings.map((s, i) => {
+        const val = s + ( exprs[i] == undefined ? "" : processExpr(exprs[i]) );
+        return val;
+    }).join("");
+
+    const df = document.createRange().createContextualFragment(retVal);
+    const selQuery = DOM_EVENTS.map(name => `[\\(${name}\\)]`).join(" , ");
+    [...df.querySelectorAll(selQuery)].forEach(elem => {
+        [...elem.getAttributeNames()].forEach(attrName => {
+            if (attrName.substring(0, 1) === "(" &&  attrName.substring(attrName.length-1) === ")") {
+                const eventType = attrName.substring(1, attrName.length-1);
+                const id = elem.getAttribute(attrName);
+                const {fn, prop} = Handlers.get(id);
+                elem.addEventListener(eventType, e => fn(e, prop));
+                Handlers.delete(id);
+            }
+        })
     });
-}
-
-function findAttrProc ( value ) {
-    const trimmed = value.trim();
-    let attrProc = HTML_ATTRS.get( trimmed );
-    if ( attrProc == undefined ) {
-        attrProc = X_ATTRS.find( v => v.matcher( value ) );
+    if (Handlers.size !== 0) {
+        console.error("Some handlers were not resolved");
     }
-    return attrProc;
+    return df;
 }
 
-// https://github.com/ai/nanoevents/blob/main/index.js
-export let createNanoEvents = () => ({
-    events: {},
-    emit(event, ...args) {
-        let callbacks = this.events[event] || [];
-        for (let i = 0, length = callbacks.length; i < length; i++) {
-            callbacks[i](...args);
-        }
-    },
-    on(event, cb) {
-        this.events[event]?.push(cb) || (this.events[event] = [cb]);
-        return () => {
-            this.events[event] = this.events[event]?.filter(i => cb !== i)
-        }
-    },
-});
+export function comp(hostNode, pos, action = {}, update = {}) {
+    return (df, publicMethods = {}) => {
+        hostNode.insertAdjacentElement(pos, df.firstElementChild);
+        const domNode = hostNode.lastElementChild;
+
+        Object.entries(action).forEach(([k, v]) => action[k] = (...param) => { 
+            v(...param); 
+            if (update[k] != undefined) {
+                update[k](domNode);
+            }
+        });
+        Object.entries(publicMethods).forEach(([k, v]) => publicMethods[k] = (...param) => { 
+            v(...param);
+            if (update[k] != undefined) {
+                update[k](domNode);
+            }
+        });
+        return publicMethods;
+    }
+}
